@@ -1,0 +1,171 @@
+Code,Community,Country,Lat,Long
+ABTL,Abou Telfane,Chad,12.08,18.89
+BAHR,Bahr Salamat,Chad,10.56,19.43
+BIND,Binder Lere,Chad,9.66,14.46
+FADA,Fada Archei,Chad,16.97,21.4
+LACF,Lac Fitri,Chad,12.77,17.43
+MANNP,Manda,Chad,9.41,18.02
+MANFR,Mandelia,Chad,11.54,15.21
+OROA,Ouadi Rime Ouadi Achim,Chad,15.52,19.25
+SIM,Siniaka Minia,Chad,10.44,18.2
+ZAK,Zakouma,Chad,10.82,19.67
+ANG,Ansongo Menaka,Mali,15.53,1.7
+CLIF,Cliff of Bandiagara,Mali,14.37,-3.37
+CON,Conkouati Douli,Congo,-3.93,11.45
+LATE,Lac Tele,Congo,1.19,17.23
+LEF,Lefini,Congo,-2.74,15.43
+MTFO,Mont Fouari,Congo,-2.8,11.61
+NOU,Nouabale Ndoki,Congo,2.5,16.6
+NYA,Nyanga Nord,Congo,-2.96,11.83
+ODZ,Odzala Kokoua,Congo,0.98,14.92
+TSO,Tsoulou,Congo,-3.58,12.5
+LOPE,Lope,Gabon,-0.53,11.54
+ABER,Aberdare,Kenya,-0.38,36.68
+AMB,Amboseli,Kenya,-2.64,37.24
+ANME,Arabuko Sokoke,Kenya,-3.33,39.89
+ARAW,Arawale,Kenya,-1.41,40.15
+HELL,Hells Gate,Kenya,-0.88,36.32
+KAK,Kakamega,Kenya,0.33,34.86
+LAKN,Lake Nakuru,Kenya,-0.39,36.1
+LOL,Lolldaiga,Kenya,0.122,37.13
+MARS,Marsabit,Kenya,2.27,37.96
+MASA,Masai Mara,Kenya,-1.47,35.11
+MERU,Meru,Kenya,0.1,38.2
+MTE,Mount Elgon,Kenya,1.19,34.51
+MTK,Mount Kenya,Kenya,-0.12,37.34
+NAI,Nairobi,Kenya,-1.38,36.86
+SAM,Samburu,Kenya,0.61,37.54
+SHNR,Shimba Hills,Kenya,-4.26,39.4
+TSA,Tsavo,Kenya,-2.78,38.77
+ADX,Addax,Niger,19.48,9.5
+ATNR,Air and Tenere,Niger,19.12,9.67
+PWN,Parc W Niger,Niger,12.31,2.41
+RFG,Reserve de faune de Gadabedji,Niger,15.14,7.15
+TAM,Tamou,Niger,12.6,2.3
+BIC,Bicuar,Angola,-15.29,14.81
+BUF,Buffalo,Angola,-12.77,13.8
+CAM,Cameia,Angola,-11.91,21.64
+CAN,Cangandala,Angola,-9.87,16.73
+IONA,Iona,Angola,-16.64,12.33
+LUA,Luando,Angola,-11.01,17.38
+LUE,Luengue Luiana,Angola,-17.4,22.52
+MAV,Mavinga,Angola,-15.55,20.99
+MOC,Mocamedes,Angola,-15.64,12.42
+MUPA,Mupa,Angola,-15.96,15.54
+QNP,QuiðÜma,Angola,-9.75,13.62
+BAD,Badiar,Guinea,12.59,-13.28
+MASS,Massif du Ziama,Guinea,8.28,-9.34
+MTN,Mount Nimba Strict,Guinea,7.65,-8.41
+RPON,Rio Pongo,Guinea,10.13,-14.15
+KSA,Kasungu,Malawi,-12.92,33.13
+LCW,Lake Chilwa,Malawi,-15.25,35.68
+LENG,Lengwe,Malawi,-16.22,34.57
+LIWO,Liwonde,Malawi,-14.86,35.34
+MAJ,Majete,Malawi,-15.92,34.62
+MWAB,Mwabvi,Malawi,-16.71,35.02
+NKH,Nkhotakota,Malawi,-12.87,34.03
+NYK,Nyika,Malawi,-10.57,33.85
+VMW,Vwaza Marsh,Malawi,-11.01,33.45
+AKA,Akagera,Rwanda,-1.64,30.71
+GISH,Gishwati,Rwanda,-1.82,29.38
+NYU,Nyungwe,Rwanda,-2.53,29.29
+VOL,Volcans,Rwanda,-1.48,29.52
+BUD,Budongo,Uganda,1.82,31.59
+KIBA,Kibale,Uganda,0.42,30.38
+KID,Kidepo Valley,Uganda,3.86,33.8
+MUR,Murchison Falls,Uganda,2.26,31.8
+RWEN,Rwenzori Mountains,Uganda,0.39,29.98
+BANG,Bangweulu,Zambia,-11.94,30.15
+KAFNP,Kafue,Zambia,-15.15,25.87
+KAFF,Kafue Flats,Zambia,-15.64,27.23
+LAKMW,Lake Mweru,Zambia,-8.65,29.42
+MWE,Mweru Wantipa,Zambia,-8.65,29.42
+WLNP,West Lunga,Zambia,-12.81,24.78
+BURU,Bururi Forest,Burundi,-3.93,29.6
+KIBI,Kibira,Burundi,-3,29.5
+RUS,Rusizi,Burundi,-3.26,29.26
+RUV,Ruvubu,Burundi,-3.13,30.37
+AIHS,Ai Ais,Namibia,-27.85,17.33
+DAAN,Daan Viljoen,Namibia,-22.53,16.96
+ETO,Etosha,Namibia,-18.95,15.9
+KHA,Khaudum,Namibia,-18.81,20.78
+MAG,Mahango,Namibia,-17.97,22.46
+MUD,Mudumu,Namibia,-18.08,23.57
+NAMI,Namib Naukluft,Namibia,-24.55,15.33
+NKA,Nkasa Rupara,Namibia,-18.39,23.66
+SKEL,Skeleton Coast,Namibia,-19.27,12.8
+WBP,Waterberg Plateau,Namibia,-20.4,17.29
+MTAS,Mount Assirik,Senegal,13.01,-13.03
+CHOB,Chobe,Botswana,-18.55,24.51
+OKA,Okavango Delta,Botswana,-19.23,23.04
+BEN,Benoue,Cameroon,8.35,13.83
+BOU,Boumba Bek,Cameroon,2.66,14.99
+CAMP,Campo Maan,Cameroon,2.5,10.35
+KOR,Korup,Cameroon,5.21,8.97
+MED,Mbam et Djerem,Cameroon,5.85,12.77
+WAZ,Waza,Cameroon,11.29,14.7
+ABI_SHA,Abijatta Shalla,Ethiopia,7.55,38.53
+AWA,Awash,Ethiopia,8.91,40.04
+BALE,Bale,Ethiopia,6.93,39.68
+GAM,Gambella,Ethiopia,7.96,34.13
+MAGO,Mago,Ethiopia,5.54,36.25
+OMO,Omo,Ethiopia,5.92,35.76
+SMNP,Simien Mountains,Ethiopia,13.16,38.18
+YAN_RAS,Yangudi Rassa,Ethiopia,10.96,40.77
+ARUSH,Arusha,Tanzania,-3.25,36.85
+GOMB,Gombe,Tanzania,-4.69,29.63
+KILI,Kilimanjaro,Tanzania,-3.06,37.33
+KIZI,Kizigo,Tanzania,-6.59,34.52
+LAKMA,Lake Manyara,Tanzania,-3.49,35.79
+LAKR,Lake Rukwa,Tanzania,-7.39,31.92
+MMNP,Mahale Mountains,Tanzania,-6.22,29.92
+MIKU,Mikumi,Tanzania,-7.44,37.22
+NGCA,Ngorongoro,Tanzania,-3.05,35.38
+RUA,Ruaha,Tanzania,-7.65,34.57
+SELO,Selous,Tanzania,-8.84,37.46
+SNP,Serengeti,Tanzania,-2.33,34.78
+TAR,Tarangire,Tanzania,-4.15,36.1
+TON,Tongwe,Tanzania,-5.3,38.73
+GONA,Gonarezhou,Zimbabwe,-21.6,31.88
+HWA,Hwange,Zimbabwe,-19.08,26.56
+MANA,Mana Pools,Zimbabwe,-15.97,29.46
+MATO,Matobo,Zimbabwe,-20.55,28.52
+MAT,Matusadona,Zimbabwe,-16.96,28.59
+MUSH,Mushandike,Zimbabwe,-20.11,30.64
+BANC,Banc dArguin,Mauritania,20.1,-15.79
+PND,Parc National du Diawling,Mauritania,16.34,-16.41
+BAN,Banhine,Mozambique,-22.81,32.87
+BAZ,Bazaruto,Mozambique,-21.73,35.44
+GILE,Gile,Mozambique,-16.55,38.38
+GORO,Gorongosa,Mozambique,-18.82,34.5
+MAP,Maputo,Mozambique,-26.5,32.33
+MARO,Marromeu,Mozambique,-18.75,35.93
+NIA,Niassa,Mozambique,-12.01,37.35
+ZIN,Zinave,Mozambique,-21.61,33.56
+COM,Comoe,Ivory Coast,9.12,-3.73
+TAI,Tai Forest,Ivory Coast,5.72,-7.12
+ARP,Arly Partial,Burkina Faso,11.4,1.14
+ART,Arly Total,Burkina Faso,11.55,1.44
+BON,Bontioli,Burkina Faso,10.85,-3.12
+DEUX,Deux Bales,Burkina Faso,11.6,-2.94
+KAB,Kabore Tambi,Burkina Faso,11.47,-1.26
+KFR,Kourtiagou,Burkina Faso,11.54,1.96
+MAD,Madjoari,Burkina Faso,11.35,1.28
+MARE,Mare aux Hippopotames,Burkina Faso,11.59,-4.15
+PFR,Pama,Burkina Faso,11.44,0.77
+SAH,Sahel,Burkina Faso,14.5,-0.58
+SING,Singou,Burkina Faso,11.68,0.96
+WNP,W,Burkina Faso,11.9,2.16
+GOLD,Golden Gate Highlands,South Africa,-28.49,28.67
+HGS,Hluhluwe,South Africa,-28.09,32.07
+KAP,Kapama,South Africa,-24.45,31.04
+KGA,Kgalagadi Transfrontier,South Africa,-25.56,20.78
+KNY,Knysna,South Africa,-34.03,23.04
+KRU,Kruger,South Africa,-24.01,31.48
+NAM,Namaqua,South Africa,-30.02,17.57
+NAT,Natal,South Africa,-28.7,28.93
+MGSF,Manovo Gounda Saint Floris,Central African Republic,9.14,21.26
+NGO,Ngotto Forest,Central African Republic,3.88,17.24
+ZEM,Zemongo,Central African Republic,6.6,25.16
+GAR,Garamba,Democratic Republic of the Congo,4.16,29.5
+SALO,Salonga,Democratic Republic of the Congo,-2.49,20.94

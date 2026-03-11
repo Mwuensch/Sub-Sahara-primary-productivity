@@ -1,0 +1,1281 @@
+---
+title: "Primary pro final"
+author: "Matt Wuensch"
+date: "2025-05-21"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+set.seed(63)
+# 1st chunk. Bring in all dfs and merge annie's region df to your primary pro data. Then drop sites based on Annie's criteria so that your projects line up well.
+
+library(dplyr)
+library(data.table)
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(tidyverse)
+library(plotrix)
+
+# Need to construct a csv that can later be Merged with GEE files to rename the heading of each file once it's split properly
+Merge.df <- data.frame(Merge = paste("EVI", 0:263, sep = "_"),
+                            Month = rep(c(1:12), times =22),
+                            Year = rep(c(2001:2022), each = 12))
+
+Merge.df.AET <- data.frame(Merge = paste("ET", 0:263, sep = "_"),
+                            Month = rep(c(1:12), times =22),
+                            Year = rep(c(2001:2022), each = 12))
+
+Merge.df.pr <- data.frame(Merge = paste("pr", 0:263, sep = "_"),
+                            Month = rep(c(1:12), times =22),
+                            Year = rep(c(2001:2022), each = 12))
+
+Merge.df.lst <- data.frame(Merge = paste("LST_Day_1km", 0:263, sep = "_"),
+                            Month = rep(c(1:12), times =22),
+                            Year = rep(c(2001:2022), each = 12))
+
+
+# Fix the first row because they all want to have "_0" written in
+#day.levels.df[1,1] = "lstname"
+Merge.df[1,1] = "EVI"
+Merge.df.AET[1,1] = "ET"
+Merge.df.pr[1,1] = "pr"
+Merge.df.lst[1,1] = "LST_Day_1km"
+
+
+# Bring in CSVs for other data
+EVI.dat <- read.csv("10K_EVI_M_Y_max.csv")
+AET.dat <- read.csv("10K_AET_M_Y.csv")
+pr.dat <- read.csv("10K_precip_M_Y.csv")
+lst.dat <- read.csv("10K_LST_M_Y.csv")
+
+
+# Cleaning df
+EVI.dat <- EVI.dat %>%
+  select(-c(system.index, .geo))
+
+AET.dat <- AET.dat %>%
+  select(-c(system.index, .geo))
+
+pr.dat <- pr.dat %>%
+  select(-c(system.index, .geo))
+
+lst.dat <- lst.dat %>%
+  select(-c(system.index, .geo))
+
+
+# Make into long format
+EVI.long <- melt(setDT(EVI.dat), id.vars = c("Code", "Community", "Country"), variable.names = c(4:267))
+
+AET.long <- melt(setDT(AET.dat), id.vars = c("Code", "Community", "Country"), variable.names = c(4:267))
+
+pr.long <- melt(setDT(pr.dat), id.vars = c("Code", "Community", "Country"), variable.names = c(4:267))
+
+lst.long <- melt(setDT(lst.dat), id.vars = c("Code", "Community", "Country"), variable.names = c(4:267))
+
+
+#reformat name of "variable"
+names(EVI.long)[names(EVI.long) == 'variable'] <- 'Merge'
+names(EVI.long)[names(EVI.long) == 'value'] <- 'EVI'
+
+names(AET.long)[names(AET.long) == 'variable'] <- 'Merge'
+names(AET.long)[names(AET.long) == 'value'] <- 'ET'
+
+names(pr.long)[names(pr.long) == 'variable'] <- 'Merge'
+names(pr.long)[names(pr.long) == 'value'] <- 'pr'
+
+names(lst.long)[names(lst.long) == 'variable'] <- 'Merge'
+names(lst.long)[names(lst.long) == 'value'] <- 'LST_Day_1km'
+
+
+# Add proper month and year to each based on assigned value for EVI (EVI = 01-2001, EVI_1 = 02-2001, etc)
+EVI.long <- EVI.long %>%
+  left_join(Merge.df, by = "Merge")
+
+AET.long <- AET.long %>%
+  left_join(Merge.df.AET, by = "Merge")
+
+pr.long <- pr.long %>%
+  left_join(Merge.df.pr, by = "Merge")
+
+lst.long <- lst.long %>%
+  left_join(Merge.df.lst, by = "Merge")
+
+
+# Move month and year
+EVI.long <- EVI.long %>%
+  relocate(c(Month,Year), .after = Country)
+
+
+# drop the merge column
+EVI.long <- EVI.long %>%
+  select(-Merge)
+
+AET.long <- AET.long %>%
+  select(-Merge)
+
+pr.long <- pr.long %>%
+  select(-Merge)
+
+lst.long <- lst.long %>%
+  select(-Merge)
+
+
+# Set dataframes up to merge with EVI
+AET.reduced <- AET.long %>%
+  select(Code, ET, Month, Year)
+
+pr.reduced <- pr.long %>%
+  select(Code, pr, Month, Year)
+
+lst.reduced <- lst.long %>%
+  select(Code, LST_Day_1km, Month, Year)
+
+
+# Merge all dfs by code
+pr.pro.dat <- EVI.long %>%
+  left_join(select(AET.long, ET, Code, Month, Year), by = c("Code", "Month", "Year"))
+
+pr.pro.dat <- pr.pro.dat %>%
+  left_join(select(pr.long, pr, Code, Month, Year), by = c("Code", "Month", "Year"))
+
+pr.pro.dat <- pr.pro.dat %>%
+  left_join(select(lst.long, LST_Day_1km, Code, Month, Year), by = c("Code", "Month", "Year"))
+
+
+# Rename columns
+names(pr.pro.dat)[names(pr.pro.dat) == 'LST_Day_1km'] <- 'LST_Day'
+
+
+# Setting month and year to be factors for exploratory models
+pr.pro.dat$Year <- as.factor(pr.pro.dat$Year)
+pr.pro.dat$Month <- as.factor(pr.pro.dat$Month)
+pr.pro.dat$Code <- as.factor(pr.pro.dat$Code)
+
+
+# As of 7/14 pr is in mm (all set), EVI is all set (can apply scale of 0.0001), LST is in kelvin (scale factor of 0.02), Evapotrans is kg/m2/8day (scale factor 0.1)
+pr.pro.dat$LST_Day <- pr.pro.dat$LST_Day*0.02 # Applying a scaling factor
+pr.pro.dat$LST_Day <- pr.pro.dat$LST_Day - 273.15 # converting from K to C
+pr.pro.dat$ET <- pr.pro.dat$ET* 0.1 # applying scaling factor of 0.1
+pr.pro.dat$EVI <- pr.pro.dat$EVI* 0.0001 # applying scaling factor of 0.0001
+
+
+
+# Bring in landco data
+AGI.dat <- read.csv("AGI_landcover_all.csv")
+AGI.dat$Code <- as.factor(AGI.dat$Code)
+AGI.dat$Year <- as.factor(AGI.dat$Year)
+
+
+# Merge landco data to other dfs
+pr.pro.dat.lc <- pr.pro.dat %>%
+  left_join(select(AGI.dat, AGI_mult, AGI_class_bin, Code, Year), by = c("Code", "Year"))
+
+# Set as df
+pr.pro.dat.lc <- as.data.frame(pr.pro.dat.lc)
+
+
+
+# Checking levels of code in pr.pro.dat. Should be 170
+levels(pr.pro.dat.lc$Code) # Good, it's 170
+
+
+# Merge in Annie's region data
+# Bring in Annie's data so you know what sites need to be pulled
+regions <- read.csv("Annie_site_pull.csv")
+regions$Code <- as.factor(regions$Code)
+regions$Region <- as.factor(regions$Region)
+
+
+# Add region data
+pr.pro.dat.reg <- pr.pro.dat.lc %>%
+  left_join(regions, by = "Code")
+
+# Drop sites with "remove", then pull sahel sites
+pr.pro.dat.filtered <- pr.pro.dat.reg %>%
+  filter(Remove == 0, !Region == "Sahel") %>%
+  droplevels()
+
+
+
+# Checking levels of code in df after filtering, there should be 129
+levels(pr.pro.dat.filtered$Code) # Good, it's 129
+
+
+# Check for NAs in variables
+which(is.na(pr.pro.dat.filtered$LST_Day)) # there's NAs in lst, drop them
+pr.pro.dat.filtered <-pr.pro.dat.filtered[complete.cases(pr.pro.dat.filtered$LST_Day),]
+
+# NAs get set to 0 for ET
+pr.pro.dat.filtered$ET[is.na(pr.pro.dat.filtered$ET)] <- 0
+
+
+# Pull values of EVI < 0.2 per Trina's recommendation
+pr.pro.dat.filtered <- pr.pro.dat.filtered %>%
+  filter(!EVI < 0.2) %>%
+  droplevels()
+
+
+droplevels(pr.pro.dat.filtered$Code)
+levels(pr.pro.dat.filtered$Code)
+
+
+
+pr.pro.dat.filtered %>%
+  count(Region)
+
+pr.pro.dat.filtered %>%
+  group_by(Region) %>%
+  summarise(n_levels_code = n_distinct(Code))
+
+
+# Note, we lose 6 sites entirely by filtering out areas with EVI < 0.2: AIHS, iona, KILI, MOC, NAMI, SKEL. 
+  # May want to visually inspect. All of these sites are from: Souther drylands, SD, Lake Turkana, SD, SD, SD
+  # Leaves us with only 5 Southern Drylands sites.
+
+
+
+# Remove unused columns
+pr.pro.dat.final <- pr.pro.dat.filtered %>%
+  select(-c(AGI_mult, Remove))
+
+# Relocate columns
+pr.pro.dat.final <- pr.pro.dat.final %>%
+  relocate(Region, .after = Year)
+
+
+
+# Center an scale independent variables
+pr.pro.cs.dat <- as.data.frame(scale(pr.pro.dat.final[c("ET", "pr", "LST_Day", "AGI_class_bin")], center = T, scale = TRUE))
+
+
+# Bind CS data to other variables
+pr.pro.cs.final <- cbind(pr.pro.dat.final[c("Code", "Month", "Year", "Region", "EVI")], pr.pro.cs.dat)
+
+
+
+# Verifying right number of sites and regions
+levels(pr.pro.cs.final$Region)
+levels(pr.pro.cs.final$Code)
+```
+# Running beta regression models and performing model selection
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+library(performance)
+library(emmeans)
+library(glmmTMB)
+library(AICcmodavg)
+library(patchwork)
+library(flextable)
+
+# Function for a correlation plot. 
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...)
+{
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(0, 1, 0, 1))
+    r <- abs(cor(x, y))
+    txt <- format(c(r, 0.123456789), digits = digits)[1]
+    txt <- paste0(prefix, txt)
+    if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+    text(0.5, 0.5, txt, cex = cex.cor * r)
+}
+
+# Making and examining correlation plot
+dev.new()
+pairs(pr.pro.cs.final[6:9],pch = 21, upper.panel = panel.cor) # it's supplemetnal, just manually save it
+
+
+
+# Run all models
+# Null model
+null.mod <- glmmTMB(EVI ~ (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+
+
+# Fragmentation only model
+frag.mod <-  glmmTMB(EVI ~ AGI_class_bin + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+
+
+#Climate only models
+clim.mod1 <- glmmTMB(EVI ~ LST_Day + pr + ET + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+clim.mod2 <- glmmTMB(EVI ~ LST_Day + pr + ET + (LST_Day * pr) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+
+
+# Climate & Fragmentation models
+cf.mod1 <- glmmTMB(EVI ~ LST_Day + pr + ET + AGI_class_bin + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+cf.mod2 <- glmmTMB(EVI ~ LST_Day + pr + ET + AGI_class_bin + (LST_Day * pr) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+cf.mod3 <- glmmTMB(EVI ~ LST_Day + pr + ET + AGI_class_bin + ((LST_Day * pr) * AGI_class_bin) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+cf.mod4 <- glmmTMB(EVI ~ (LST_Day + pr + ET) * AGI_class_bin + ((LST_Day * pr) * AGI_class_bin) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+
+
+# Biome only model
+biome.mod <- glmmTMB(EVI ~ Region + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+
+
+# Biome & climate models
+bc.mod1 <- glmmTMB(EVI ~ LST_Day + pr + ET + Region + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bc.mod2 <- glmmTMB(EVI ~ LST_Day + pr + ET + Region + (LST_Day * pr) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bc.mod3 <- glmmTMB(EVI ~ LST_Day + pr + ET + Region + ((LST_Day * pr) * Region) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bc.mod4 <- glmmTMB(EVI ~ (LST_Day + pr + ET) * Region + ((LST_Day * pr) * Region) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+
+
+
+# Biome & fragmentation models
+bf.mod1 <- glmmTMB(EVI ~ Region + AGI_class_bin + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bf.mod2 <- glmmTMB(EVI ~ Region * AGI_class_bin + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+
+
+# Biome, climate, & fragmentation models
+bfc.mod1 <- glmmTMB(EVI ~ LST_Day + pr + ET + Region + AGI_class_bin + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod2 <- glmmTMB(EVI ~ (LST_Day + pr + ET + AGI_class_bin) * Region + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod3 <- glmmTMB(EVI ~ LST_Day + pr + ET + AGI_class_bin + Region + (LST_Day * pr) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod4 <- glmmTMB(EVI ~ (LST_Day + pr + ET + AGI_class_bin) * Region + (LST_Day * pr) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod5 <- glmmTMB(EVI ~ LST_Day + pr + ET + AGI_class_bin + Region + ((LST_Day * pr) * Region) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod6 <- glmmTMB(EVI ~ (LST_Day + pr + ET + AGI_class_bin) * Region + ((LST_Day * pr) * Region) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod7 <- glmmTMB(EVI ~ ((LST_Day + pr + ET) * AGI_class_bin) * Region + (LST_Day * pr) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod8 <- glmmTMB(EVI ~ ((LST_Day + pr + ET) * AGI_class_bin) * Region + ((LST_Day * pr) * Region) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod.9 <- glmmTMB(EVI ~ LST_Day + pr + ET + (AGI_class_bin * Region) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+bfc.mod.10 <- glmmTMB(EVI ~ LST_Day + pr + ET + (AGI_class_bin * Region) + ((LST_Day * pr) * Region) + (1|Code), data = pr.pro.cs.final, REML = FALSE, family = beta_family())
+
+
+
+# AIC to determine model that performs the best
+full.mod.list <- list(null.mod, frag.mod, clim.mod1, clim.mod2, cf.mod1, cf.mod2, cf.mod3, cf.mod4, biome.mod, bc.mod1, bc.mod2, bc.mod3, bc.mod4, bf.mod1, bf.mod2, bfc.mod1, bfc.mod2, bfc.mod3, bfc.mod4, bfc.mod5, bfc.mod6, bfc.mod7, bfc.mod8, bfc.mod.9, bfc.mod.10)
+
+full.mod.list.names <- c('null model', 'fragmentation model', 'climate model 1', 'climate model 2', 'climate & fragmentation model 1', 'climate & fragmentation model 2', 'climate & fragmentation model 3', 'climate & fragmentation model 4', 'bioregion model', 'bioregion & climate model 1', 'bioregion & climate model 2', 'bioregion & climate model 3', 'bioregion & climate model 4', 'bioregion & fragmentation model 1', 'bioregion & fragmentation model 2', 'full model 1', 'full model 2', 'full model 3', 'full model 4', 'full model 5', 'full model 6', 'full model 7', 'full model 8', 'full model 9', 'full model 10')
+
+aic.table <- as.data.frame(aictab(cand.set = full.mod.list, modnames = full.mod.list.names, second.ord = F))
+
+# Correcting sig figs
+selected.table.sf <- aic.table %>%
+  mutate(Delta_AIC = signif(Delta_AIC, 7),
+         AICWt = signif(AICWt, 2),
+         Cum.Wt = signif(Cum.Wt, 15)) %>%
+  select(c(-ModelLik, -LL, -Cum.Wt))
+
+# Create a publication-quality table
+ft <- flextable(selected.table.sf) %>%
+    theme_booktabs() %>%
+  autofit()
+ft
+
+# Table for ALL models. But this is fairly messy
+#write.csv(aic.table, file = "aicc.table.csv", row.names = F)
+```
+# Rerun final model with REML = T for inference
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+library(performance)
+library(emmeans)
+library(glmmTMB)
+library(AICcmodavg)
+library(patchwork)
+library(flextable)
+library(ggh4x)
+library(scales)
+# Rerun top model with REML = T, and use anova to get p values
+final.model <- glmmTMB(EVI ~ ((LST_Day+pr+ET) * AGI_class_bin) * Region +  ((LST_Day*pr) * Region) + (1|Code), data = pr.pro.cs.final, REML = T, family = beta_family())
+sum.table <- summary(final.model)
+
+# Will use this for supplemental table
+sum.table2 <- as.data.frame(sum.table$coefficients$cond)
+
+#Check variance explained
+r2_nakagawa(final.model)
+anova.table <- as.data.frame(car::Anova(final.model, type = 3))
+
+# verify model residuals look ok, could also do with DHARMA.
+dev.new()
+qqnorm(resid(final.model))
+qqline(resid(final.model))
+hist(resid(final.model), breaks = 19)
+
+
+# Making additiional tables for supplement
+sum.table2
+anova.table
+
+# fixing column names
+names(sum.table2) <- gsub(x = names(sum.table2), pattern = " ", replacement = "")
+names(sum.table2)[names(sum.table2) == 'Pr(>|z|)'] <- 'P'
+
+# Reorder columns 
+
+## Adjust these for rounding 
+# Correcting sig figs
+sum.table2.t <- sum.table2 %>%
+  mutate(Estimate = signif(Estimate, 3),
+         Std.Error = signif(Std.Error, 3)) %>%
+  select(c(-zvalue, -P))
+
+# Create a publication-quality table
+ft <- flextable(selected.table.sf) %>%
+    theme_booktabs() %>%
+  autofit()
+ft
+
+
+
+# Making additiional tables for supplement
+sum.table2
+anova.table
+
+# fixing column names
+names(sum.table2) <- gsub(x = names(sum.table2), pattern = " ", replacement = "")
+names(sum.table2)[names(sum.table2) == 'Pr(>|z|)'] <- 'P'
+# Correcting sig figs
+sum.table2.t <- sum.table2 %>%
+  mutate(Estimate = signif(Estimate, 3),
+         Std.Error = signif(Std.Error, 3)) %>%
+  select(c(-zvalue, -P))
+
+# Create a publication-quality table
+ft <- flextable(selected.table.sf) %>%
+    theme_booktabs() %>%
+  autofit()
+ft
+### Need to finalize and save these tables again. ##############
+
+```
+# Building figures
+```{r}
+# Using emtrends to get p-values for each ecoregion and covar. covar1 and covar2. 
+test(emtrends(final.model, ~ "Region", var = "ET"))
+
+## LST
+test(emtrends(final.model, ~ "Region", var = "LST_Day"))
+
+## pr
+test(emtrends(final.model, ~ "Region", var = "pr"))
+
+## AGI
+test(emtrends(final.model, ~ "Region", var = "AGI_class_bin"))
+
+# Making p-value df
+## ET
+et.p.dat <- data.frame(
+  p.val = c("p < 0.0001*", "p < 0.0001*", "p = 0.1911", "p < 0.0001*", "p < 0.0001*", "p < 0.0001*"),
+  Region = c("Congolian Forests", "Lake Turkana", "Southern Drylands", "Subequatorial Savannas & Woodlands", "Sudanian Savanna", "Victoria Basin & Albertine Rift Forests")
+)
+
+## LST
+lst.p.dat <- data.frame(
+  p.val = c("p < 0.0001*", "p < 0.0001*", "p = 0.4171", "p < 0.0001*", "p < 0.0001*", "p = 0.5465"),
+  Region = c("Congolian Forests", "Lake Turkana", "Southern Drylands", "Subequatorial Savannas & Woodlands", "Sudanian Savanna", "Victoria Basin & Albertine Rift Forests")
+)
+
+## pr
+pr.p.dat <- data.frame(
+  p.val = c("p < 0.0001*", "p = 0.0113*", "p = 0.7473", "p < 0.0001*", "p < 0.0001*", "p < 0.0001*"),
+  Region = c("Congolian Forests", "Lake Turkana", "Southern Drylands", "Subequatorial Savannas & Woodlands", "Sudanian Savanna", "Victoria Basin & Albertine Rift Forests")
+)
+
+## AGI
+agi.p.dat <- data.frame(
+  p.val = c("p = 0.0003*", "p < 0.0005*", "p = 0.3907", "p = 0.0026*", "p < 0.0001*", "p = 0.1314"),
+  Region = c("Congolian Forests", "Lake Turkana", "Southern Drylands", "Subequatorial Savannas & Woodlands", "Sudanian Savanna", "Victoria Basin & Albertine Rift Forests")
+)
+
+pval <- data.frame(pval = "p < 0.0001*")
+
+# Making df for the predicted values
+# Df with all values at sequences of 5
+newdata.eco.evi.bio <- expand.grid(LST_Day = seq(min(pr.pro.cs.final$LST_Day),max(pr.pro.cs.final$LST_Day), length = 10),
+                         pr = seq(min(pr.pro.cs.final$pr),max(pr.pro.cs.final$pr), length = 10),
+                        AGI_class_bin = c(quantile(pr.pro.cs.final$AGI_class_bin, 0.975), quantile(pr.pro.cs.final$AGI_class_bin, 0.025)),
+                        ET = seq(min(pr.pro.cs.final$ET),max(pr.pro.cs.final$ET), length = 10),
+                        Code = NA,
+                        Region = levels(pr.pro.cs.final$Region))
+
+
+# Making df to store values in
+newdata.eco.evi.bio <- as.data.frame(newdata.eco.evi.bio[1:6])
+
+
+# Prediction values for df at each condition
+newdata.eco.evi.bio$EVI.pred <- predict(final.model, newdata.eco.evi.bio, type = "response")
+
+# Making categorical group for AGI
+newdata.eco.evi.bio$AGI_class_bin <- as.factor(newdata.eco.evi.bio$AGI_class_bin)
+levels(newdata.eco.evi.bio$AGI_class_bin)
+
+# Defining levels. Max is the max fragmentation within the 95% range of total values
+newdata.eco.evi.bio <- newdata.eco.evi.bio %>%
+  mutate(AGI_level = case_when(AGI_class_bin == "-3.26915841165111" ~ "High",
+         AGI_class_bin == "0.452355720429034" ~ "Low"))
+newdata.eco.evi.bio$AGI_level <- factor(newdata.eco.evi.bio$AGI_level, levels = c("High", "Low"))
+
+
+# Writing the theme for your faceted plots
+plot.theme.facet <-  theme(axis.text.x = element_text(size=12),axis.text.y = element_text(size=12),
+  axis.title.x = element_text(size=13),axis.title.y = element_text(size=13),
+  panel.background = element_blank(), panel.border = element_blank(),
+  panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+  axis.line = element_line(colour = "black"))
+
+
+
+####################
+##### Figure 3 #####
+####################
+
+# Writing the theme for your faceted plots
+plot.theme.facet <-  theme(axis.text.x = element_text(size=12),axis.text.y = element_text(size=12),
+  axis.title.x = element_text(size=13),axis.title.y = element_text(size=13),
+  panel.background = element_blank(), panel.border = element_blank(),
+  panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+  axis.line = element_line(colour = "black"))
+
+dev.new()
+# Summarising for figure
+fig.2.lst <- newdata.eco.evi.bio %>%
+  group_by(Region, AGI_level, LST_Day) %>%
+  summarise(mean.EVI = mean(EVI.pred),
+            std.er.EVI = std.error(EVI.pred),
+            min = (mean.EVI - std.er.EVI),
+            max = (mean.EVI + std.er.EVI))
+
+# Filtering for significant groups
+fig.2.summary.lst <- fig.2.lst %>%
+  filter(!Region %in% c("Southern Drylands"))
+
+lst.p.dat.fig2 <- lst.p.dat %>%
+   filter(!Region %in% c("Southern Drylands")) %>%  
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+# Reorder factor levels
+fig.2.summary.lst <- fig.2.summary.lst %>%
+  mutate(Region = factor(Region,levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+# facet labels
+lst.facet.labels <- data.frame(
+  Region = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana"),  # must match facet variable values
+  label = c("a", "b", "c", "d", "e"),
+  x = 3,  # set to a suitable ET value
+  y = 1) %>%  # set to a suitable EVI value
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+LST.AGI.plot.reg <- ggplot(fig.2.summary.lst) +
+  geom_line(aes(x = LST_Day, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = LST_Day, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  facet_wrap(~Region, ncol =1) + 
+  ylab("Primary productivity (EVI)") + 
+  plot.theme.facet +
+  xlab("Land Surface Temperature") +
+  geom_text(data = lst.facet.labels, aes(x = x, y = y, label = label), hjust = 0, vjust = 1, size = 5.5, fontface = "bold") +
+  geom_text(lst.p.dat.fig2, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -0.3, vjust = -1, size = 4)  +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01)) +
+  ylim(0,1)
+
+
+
+# Summarising for figure
+fig.2.pr <- newdata.eco.evi.bio %>%
+  group_by(Region, AGI_level, pr) %>%
+  summarise(mean.EVI = mean(EVI.pred),
+            std.er.EVI = std.error(EVI.pred),
+            min = (mean.EVI - std.er.EVI),
+            max = (mean.EVI + std.er.EVI))
+
+# Filtering for significant groups
+fig.2.summary.pr <- fig.2.pr %>%
+  filter(!Region %in% c("Southern Drylands"))
+
+pr.p.dat.fig2 <- pr.p.dat %>%
+   filter(!Region %in% c("Southern Drylands")) %>%  
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+# Reorder factor levels
+fig.2.summary.pr <- fig.2.summary.pr %>%
+  mutate(Region = factor(Region,levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+# facet labels
+pr.facet.labels <- data.frame(
+  Region = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana"),  # must match facet variable values
+  label = c("f", "g", "h", "i", "j"),
+  x = 8.25,  # set to a suitable ET value
+  y = 1) %>%  
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+pr.AGI.plot.reg <- ggplot(fig.2.summary.pr) +
+  geom_line(aes(x = pr, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = pr, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  plot.theme.facet +
+  facet_wrap(~Region, ncol =1) + 
+  ylab(NULL) + 
+  xlab("Precipitation") +
+  geom_text(data = pr.facet.labels, aes(x = x, y = y, label = label), hjust = 0, vjust = 1, size = 5.5, fontface = "bold") +
+  geom_text(pr.p.dat.fig2, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -0.3, vjust = -1, size = 4) +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01)) +
+  ylim(0,1)
+
+
+  
+# Summarising for figure
+fig.2.et <- newdata.eco.evi.bio %>%
+  group_by(Region, AGI_level, ET) %>%
+  summarise(mean.EVI = mean(EVI.pred),
+            std.er.EVI = std.error(EVI.pred),
+            min = (mean.EVI - std.er.EVI),
+            max = (mean.EVI + std.er.EVI))
+
+# Filtering for significant groups
+fig.2.summary.et <- fig.2.et %>%
+  filter(!Region %in% c("Southern Drylands"))
+
+et.p.dat.fig2 <- et.p.dat %>%
+   filter(!Region %in% c("Southern Drylands")) %>%  
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+# Reorder factor levels
+fig.2.summary.et <- fig.2.summary.et %>%
+  mutate(Region = factor(Region,levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+# facet labels
+et.facet.labels <- data.frame(
+  Region = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana"),  # must match facet variable values
+  label = c("k", "l", "m", "n", "o"),
+  x = c(2.1, 2.5, 2.25, 2.25, 2.25),  # set to a suitable ET value
+  y = 1) %>%  
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+et.AGI.plot.reg <- ggplot(fig.2.summary.et) +
+  geom_line(aes(x = ET, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = ET, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  plot.theme.facet +
+  facet_wrap(~Region, ncol =1) + 
+  ylab(NULL) + 
+  xlab("Evapotranspiration") +
+  geom_text(data = et.facet.labels, aes(x = x, y = y, label = label), hjust = 0, vjust = 1, size = 5.5, fontface = "bold") +
+  geom_text(et.p.dat.fig2, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -0.3, vjust = -1, size = 4)  +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01)) +
+  ylim(0,1)
+
+# Next step is to combine each of these into a single plot with legend at top or bottom. 
+combo <- (LST.AGI.plot.reg/pr.AGI.plot.reg/et.AGI.plot.reg) + plot_layout(ncol = 3, guides = "collect") & theme(legend.position = "top")
+
+combo
+
+ggsave("Fig.3.fix_y_jan.8.png", combo, dpi = 500, width = 8.5, height = 11) 
+
+
+
+
+####################
+##### Figure 4 #####
+####################
+
+# Df with all values at sequences of 5
+newdata.eco.evi.pr <- expand.grid(LST_Day = seq(min(pr.pro.cs.final$LST_Day),max(pr.pro.cs.final$LST_Day), length = 10),
+                         pr = c(quantile(pr.pro.cs.final$pr, 0.975), quantile(pr.pro.cs.final$pr, 0.025)),
+                        AGI_class_bin = seq(min(pr.pro.cs.final$AGI_class_bin),max(pr.pro.cs.final$AGI_class_bin), length = 10),
+                        ET = seq(min(pr.pro.cs.final$ET),max(pr.pro.cs.final$ET), length = 10),
+                        Code = NA,
+                        Region = levels(pr.pro.cs.final$Region))
+
+
+# Making df to store values in
+newdata.eco.evi.pr <- as.data.frame(newdata.eco.evi.pr[1:6])
+
+
+# Prediction values for df at each condition
+newdata.eco.evi.pr$EVI.pred <- predict(final.model, newdata.eco.evi.pr, type = "response")
+
+# Making categorical group for AGI
+newdata.eco.evi.pr$pr <- as.factor(newdata.eco.evi.pr$pr)
+levels(newdata.eco.evi.pr$pr)
+
+# Defining levels. Max is the max fragmentation within the 95% range of total values
+newdata.eco.evi.pr <- newdata.eco.evi.pr %>%
+  mutate(pr_level = case_when(pr == "2.2513265734553" ~ "High",
+                              pr == "-1.0726547952796" ~ "Low"))
+newdata.eco.evi.pr$pr_level <- factor(newdata.eco.evi.pr$pr_level, levels = c("High", "Low"))
+
+# Summarising for figure
+fig.3.summary <- newdata.eco.evi.pr %>%
+  group_by(Region, pr_level, LST_Day) %>%
+  summarise(mean.EVI = mean(EVI.pred),
+            std.er.EVI = std.error(EVI.pred),
+            min = (mean.EVI - std.er.EVI),
+            max = (mean.EVI + std.er.EVI))
+
+# Filtering for significant groups
+fig.3.summary <- fig.3.summary %>%
+  filter(!Region %in% c("Southern Drylands", "Victoria Basin & Albertine Rift Forests")) %>%  
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+lst.p.dat2 <- lst.p.dat %>%
+   filter(!Region %in% c("Southern Drylands", "Victoria Basin & Albertine Rift Forests")) %>%  
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana")))
+
+lst.pr.plot <- ggplot(fig.3.summary) +
+  geom_line(aes(x = LST_Day, y = mean.EVI, group = pr_level, color = pr_level), size = 1) +
+  geom_ribbon(aes(x = LST_Day, ymin = min, ymax = max, group = pr_level, fill = pr_level), alpha = .5)+
+  scale_color_manual(values = c("#2B5C8A", "#DFCEBA"), name = "Precipitation") + 
+  scale_fill_manual(values = c("#2B5C8A", "#DFCEBA"), name = "Precipitation") +
+  facet_wrap(~Region, ncol =2) + 
+  plot.theme.facet +
+  ylab("Primary productivity (EVI)") + 
+  xlab("Land Surface Temperature") +
+  geom_text(lst.p.dat2, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -0.3, vjust = -1, size = 4) +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01)) +
+  ylim(0,1)
+
+# Saving the plot
+ggsave("Fig.4.jan.9.png", lst.pr.plot, dpi = 500, height = 4.666666666667, width = 7)
+
+
+
+########################  
+##### Map Figure 1 #####
+########################
+# Data to use for mapping: pr.pro.cs.final
+library(rnaturalearth)
+library(sf)
+library(ggspatial)
+library(NatParksPalettes)
+  
+# Get Africa map
+africa <- ne_countries(continent = "Africa", scale = "medium", returnclass = "sf")
+
+# Read in coordinates
+site_coords <- read.csv("NSF_Site_Coords.csv")
+
+# Join coordinates to the final sites after you've dropped ones that didn't meet criteria
+points_dat <- pr.pro.cs.final %>%
+  right_join(site_coords[c("Code", "Lat", "Long")], by = "Code") %>%
+  distinct(Code, .keep_all = T) 
+
+# Drop unused sites
+points_dat <- points_dat %>%
+  drop_na(Region)
+
+# Convert to sf. 
+points_sf <- st_as_sf(points_dat, coords = c("Long", "Lat"), crs = 4326)
+
+# Colors
+sag <- natparks.pals("Saguaro")[c(6,1,5,3,4,2)]
+
+# Plot
+map.plot <- ggplot() +
+  geom_sf(data = africa, fill = "grey90", color = "black") +
+  geom_sf(data = points_sf, aes(color = Region), size = 1.5) +
+  coord_sf(xlim = c(-25, 55), ylim = c(-40, 40), expand = FALSE) +
+  scale_color_manual(values = sag) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_line(color = "grey85")
+  ) +
+  labs(color = "Region") + 
+  guides(color = guide_legend(override.aes = list(size = 4)))
+
+# Save it
+ggsave("Map.sag.png", map.plot, dpi = 500, width = 8, height = 5, bg = "white")
+
+
+
+####################################
+##### Supp Fig for S. Drylands #####
+####################################
+
+# Filtering for non-significant groups
+sup.summary.lst <- fig.2.lst %>%
+  filter(Region %in% c("Southern Drylands"))
+
+lst.p.dat.sup <- lst.p.dat %>%
+   filter(Region %in% c("Southern Drylands"))
+
+LST.AGI.sup<- ggplot(sup.summary.lst) +
+  geom_line(aes(x = LST_Day, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = LST_Day, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") +
+  ylab("Plant productivity (EVI)") + 
+  plot.theme.facet +
+  facet_wrap(~Region, ncol =1, scales = "free_y") +
+  ylab("EVI") + 
+  xlab("Land Surface Temperature") +
+  geom_text(lst.p.dat.sup, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -0.5, vjust = -1, size = 4)  +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01))
+
+
+# Filtering for non-significant groups
+sup.summary.pr <- fig.2.pr %>%
+  filter(Region %in% c("Southern Drylands"))
+
+pr.p.dat.sup <- pr.p.dat %>%
+   filter(Region %in% c("Southern Drylands"))
+
+pr.AGI.sup <- ggplot(sup.summary.pr) +
+  geom_line(aes(x = pr, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = pr, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  plot.theme.facet +
+  facet_wrap(~Region, ncol =1, scales = "free_y") +
+  ylab(NULL) + 
+  xlab("Precipitation") +
+  geom_text(pr.p.dat.sup, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -0.3, vjust = -1, size = 4) +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01))
+
+
+# Filtering for significant groups
+sup.summary.et <- fig.2.et %>%
+  filter(Region %in% c("Southern Drylands"))
+
+et.p.dat.sup <- et.p.dat %>%
+   filter(Region %in% c("Southern Drylands"))
+
+et.AGI.sup <- ggplot(sup.summary.et) +
+  geom_line(aes(x = ET, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = ET, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  plot.theme.facet +
+  facet_wrap(~Region, ncol =1, scales = "free_y") + 
+  ylab(NULL) + 
+  xlab("Evapotranspiration") +
+  geom_text(et.p.dat.sup, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -0.3, vjust = -1, size = 4)  +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01))
+
+# Next step is to combine each of these into a single plot with legend at top or bottom. 
+sup.fig2 <- (LST.AGI.sup/pr.AGI.sup/et.AGI.sup) + plot_layout(ncol = 3, guides = "collect") & theme(legend.position = "top")
+sup.fig2
+
+ggsave("sup.fig.2.jan.9.png", sup.fig2, dpi = 500, width = 8.5, height = 3.67) 
+
+
+
+
+######################################
+##### Supp Figs w/ varied y axis #####
+######################################
+
+# Supplemental fig 3
+LST.supp.3 <- ggplot(fig.2.summary.lst) +
+  geom_line(aes(x = LST_Day, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = LST_Day, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  facet_wrap(~Region, ncol =1, scales = "free_y") + 
+  ylab("EVI") + 
+  plot.theme.facet +
+  ylab("Plant productivity (EVI)") + 
+  xlab("Land Surface Temperature") +
+  geom_text(lst.p.dat.fig2, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -1.25, vjust = -1, size = 4) +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01))
+
+pr.supp.3 <- ggplot(fig.2.summary.pr) +
+  geom_line(aes(x = pr, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = pr, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  plot.theme.facet +
+  facet_wrap(~Region, ncol =1, scales = "free_y") + 
+  ylab(NULL) + 
+  xlab("Precipitation") +
+  geom_text(pr.p.dat.fig2, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -1.25, vjust = -1, size = 4) +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01)) 
+
+et.supp.3 <- ggplot(fig.2.summary.et) +
+  geom_line(aes(x = ET, y = mean.EVI,  color = AGI_level), size = 1) +
+  geom_ribbon(aes(x = ET, ymin = min, ymax = max, fill = AGI_level), alpha = 0.5)+
+  scale_color_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  scale_fill_manual(values = c("#ABABAB", "#468A09"), name = "Fragmentation") + 
+  plot.theme.facet +
+  facet_wrap(~Region, ncol =1, scales = "free_y") + 
+  ylab(NULL) + 
+  xlab("Evapotranspiration") +
+  geom_text(et.p.dat.fig2, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -1.25, vjust = -1, size = 4)  +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01)) 
+
+# Next step is to combine each of these into a single plot with legend at top or bottom. 
+fig.supp.3 <- (LST.supp.3/pr.supp.3/et.supp.3) + plot_layout(ncol = 3, guides = "collect") & theme(legend.position = "top")
+fig.supp.3
+
+ggsave("fig.supp.3.jan.9.png", fig.supp.3, dpi = 500, width = 8.5, height = 11) 
+
+
+
+# Supplemental fig 4
+lst.pr.supp.4 <- ggplot(fig.3.summary) +
+  geom_line(aes(x = LST_Day, y = mean.EVI, group = pr_level, color = pr_level), size = 1) +
+  geom_ribbon(aes(x = LST_Day, ymin = min, ymax = max, group = pr_level, fill = pr_level), alpha = .5)+
+  scale_color_manual(values = c("#2B5C8A", "#DFCEBA"), name = "Precipitation") + 
+  scale_fill_manual(values = c("#2B5C8A", "#DFCEBA"), name = "Precipitation") +
+  facet_wrap(~Region, ncol =2, scales = "free_y") + 
+  plot.theme.facet +
+  ylab("Plant productivity (EVI)") + 
+  xlab("Land Surface Temperature") +
+  geom_text(lst.p.dat2, mapping = aes(x = -Inf, y = -Inf, label = p.val), color = "black", hjust = -0.4, vjust = -1, size = 4) +
+scale_y_continuous(expand = expansion(mult = 0.1), labels = scales::label_number(accuracy = 0.01))
+
+# Saving the plot
+ggsave("fig.supp.4.jan.9.png", lst.pr.supp.4, dpi = 500, height = 4.666666666667, width = 7)
+
+
+
+####-----------------------####
+#### Summaries and violins ####
+####-----------------------####
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(NatParksPalettes)
+library(grid)
+
+# Violin + boxplot overlay 
+dev.new()
+
+# Renaming original df to work with here
+box.pl.dat <- pr.pro.dat.final %>%
+  mutate(Region = factor(Region, levels = c("Congolian Forests", "Victoria Basin & Albertine Rift Forests", "Sudanian Savanna", "Subequatorial Savannas & Woodlands", "Lake Turkana", "Southern Drylands")))
+
+# Colors
+sag <- natparks.pals("Saguaro")[c(6,2,4,3,1,5)]
+
+# EVI
+EVI.violin <- ggplot(box.pl.dat, aes(x = Region, y = EVI, fill = Region)) +
+  #geom_violin(trim = FALSE, alpha = 0.75) +
+  geom_boxplot(width = 0.5, outlier.shape = NA) +
+  scale_fill_manual(values = sag) +
+  theme_minimal(base_size = 12) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = "none",
+        strip.text = element_text(face = "bold"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks.y = element_line(),
+        axis.title.y = element_text(size = 13),
+        axis.text.y = element_text(size = 12)) +
+  annotation_custom(
+    grob = textGrob("a",
+                    x = unit(1, "npc"),  # 2% from left edge
+                    y = unit(1, "npc"),  # 2% from top edge
+                    just = c("right", "top"),
+                    gp = gpar(fontface = "bold", cex = 1.7))) +
+  labs(y = "Plant productivity (EVI)")
+
+# Land surface temperature
+LST.violin <- ggplot(box.pl.dat, aes(x = Region, y = LST_Day, fill = Region)) +
+  #geom_violin(trim = FALSE, alpha = 0.75) +
+  geom_boxplot(width = 0.5, outlier.shape = NA) +
+  scale_fill_manual(values = sag) +
+  scale_x_discrete(labels=c("Congolian Forest", "Lake Turkana", "Southern Dryland", "Subeq. Savanna & Woodland", "Sudanian Savanna", "V.B. & A.R. Forests")) +
+  theme_minimal(base_size = 12) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = "none",
+        strip.text = element_text(face = "bold"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks.y = element_line(),
+        axis.title.y = element_text(size = 13),
+        axis.text.y = element_text(size = 12)) +
+  annotation_custom(
+    grob = textGrob("d",
+                    x = unit(1, "npc"),  # 2% from left edge
+                    y = unit(1, "npc"),  # 2% from top edge
+                    just = c("right", "top"),
+                    gp = gpar(fontface = "bold", cex = 1.9)))+
+  labs(y = "Surface Temperature (°C)")
+
+# Precipitation
+pr.violin <- ggplot(box.pl.dat, aes(x = Region, y = pr, fill = Region)) +
+  #geom_violin(trim = FALSE, alpha = 0.75) +
+  geom_boxplot(width = 0.5, outlier.shape = NA) +
+  scale_fill_manual(values = sag) +
+  scale_x_discrete(labels=c("Congolian Forest", "Lake Turkana", "Southern Dryland", "Subeq. Savanna & Woodland", "Sudanian Savanna", "V.B. & A.R. Forests")) +
+  theme_minimal(base_size = 12) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = "none",
+        strip.text = element_text(face = "bold"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks.y = element_line(),
+        axis.title.y = element_text(size = 13),
+        axis.text.y = element_text(size = 12)) +
+  annotation_custom(
+    grob = textGrob("b",
+                    x = unit(1, "npc"),  # 2% from left edge
+                    y = unit(1, "npc"),  # 2% from top edge
+                    just = c("right", "top"),
+                    gp = gpar(fontface = "bold", cex = 1.9))) + 
+  labs(y = "Precipitation (mm)") + 
+  ylim(0,400)
+
+# Evapotranspiration
+ET.violin <- ggplot(box.pl.dat, aes(x = Region, y = ET, fill = Region)) +
+  #geom_violin(trim = FALSE, alpha = 0.75) +
+  geom_boxplot(width = 0.5, outlier.shape = NA) +
+  scale_fill_manual(values = sag) +
+  scale_x_discrete(labels=c("CF", "VB", "SS", "SSW", "LT", "SD")) +
+  theme_minimal(base_size = 12) +
+  theme(axis.title.x = element_blank(),
+        legend.position = "none",
+        strip.text = element_text(face = "bold"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks.y = element_line(),
+        axis.title.y = element_text(size = 13),
+        axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 12)) +
+  annotation_custom(
+    grob = textGrob("c",
+                    x = unit(1, "npc"),  # 2% from left edge
+                    y = unit(1, "npc"),  # 2% from top edge
+                    just = c("right", "top"),
+                    gp = gpar(fontface = "bold", cex = 1.9))) +
+  labs(y = "Evapotranspiration (kg/m2)")
+
+# Aggregation index (take the legend from this one)
+AGI.violin <- ggplot(box.pl.dat, aes(x = Region, y = AGI_class_bin/100, fill = Region)) +
+  geom_boxplot(width = 0.5, outlier.shape = NA) +
+  scale_fill_manual(values = sag, labels = c("Congolian Forests (CF)", "Victoria Basin & Albertine Rift Forests (VB)", "Sudanian Savanna (SS)", "Subequatorial Savannas & Woodlands (SSW)", "Lake Turkana (LT)", "Southern Drylands (SD)")) +
+  scale_x_discrete(labels=c("Congolian Forest (CF)", "Lake Turkana (LT)", "Southern Dryland (SD)", "Subeq. Savanna & Woodland (SSW)", "Sudanian Savanna (SS)", "V.B. & A.R. Forests (VB)")) +
+  theme_minimal(base_size = 12) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, size = 7, hjust = 1),
+        strip.text = element_text(face = "bold"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks.x = element_line(),
+        axis.title.y = element_text(size = 13),
+        axis.text.y = element_text(size = 12),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 14)) +
+  annotation_custom(
+    grob = textGrob("e",
+                    x = unit(1, "npc"),  # 2% from RIGHT edge
+                    y = unit(1, "npc"),  # 2% from top edge
+                    just = c("right", "top"),
+                    gp = gpar(fontface = "bold", cex = 1.9))) +
+  labs(y = "Aggregation Index") + ylim(.7,1.00) +
+  guides(fill = guide_legend(override.aes = list(size = 8)))
+
+# Extract legend as a gtable
+legend <- get_legend(AGI.violin)
+
+# Convert to a ggplot object
+legend_plot <- ggdraw(legend)
+
+# Aggregation index (No legend)
+AGI.violin <- ggplot(pr.pro.dat.final, aes(x = Region, y = AGI_class_bin/100, fill = Region)) +
+  geom_boxplot(width = 0.5, outlier.shape = NA) +
+  scale_fill_manual(values = sag) +
+  scale_x_discrete(labels=c("CF", "VB", "SS", "SSW", "LT", "SD")) +
+  theme_minimal(base_size = 12) +
+  theme(axis.title.x = element_blank(),
+        legend.position = "none",
+        strip.text = element_text(face = "bold"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks.y = element_line(),
+        axis.title.y = element_text(size = 13),
+        axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 12)) +
+  annotation_custom(
+    grob = textGrob("e",
+                    x = unit(1, "npc"),  # 2% from left edge
+                    y = unit(1, "npc"),  # 2% from top edge
+                    just = c("right", "top"),
+                    gp = gpar(fontface = "bold", cex = 1.9))) +
+  labs(y = "Aggregation Index") + ylim(.7,1.00)
+
+full.violin <- EVI.violin + legend + pr.violin + LST.violin + ET.violin + AGI.violin + plot_layout(ncol = 2)
+
+# Saving the stitched plot. Tweak singular/plural of legend though
+ggsave("violin.fig.jan.9.png", full.violin, dpi = 500, height = 8, width = 11)
+
+
+####----------------------------------####
+#### Summary stats for EVI and covars ####
+####----------------------------------####
+library(janitor)
+# EVI
+evi.summary <- pr.pro.dat.final %>%
+  group_by(Region) %>%
+  summarise(mean(EVI), sd(EVI), median(EVI), std.error(EVI))
+
+# Surface temperature
+lst.summary <- pr.pro.dat.final %>%
+  group_by(Region) %>%
+  summarise(mean(LST_Day), sd(LST_Day), median(LST_Day), std.error(LST_Day))
+
+# precipitation
+pr.summary <- pr.pro.dat.final %>%
+  group_by(Region) %>%
+  summarise(mean(pr), sd(pr), median(pr), std.error(pr))
+
+# Evapotranspiration
+et.summary <- pr.pro.dat.final %>%
+  group_by(Region) %>%
+  summarise(mean(ET), sd(ET), median(ET), std.error(ET))
+
+# AGI
+agi.summary <- pr.pro.dat.final %>%
+  group_by(Region) %>%
+  summarise(mean(AGI_class_bin), sd(AGI_class_bin), median(AGI_class_bin), std.error(AGI_class_bin))
+
+
+
+# Need to flip the df, add a column for covar name
+evi.summary.tps <- as_tibble(cbind(nms = names(evi.summary), t(evi.summary)))
+evi.summary.tps <- evi.summary.tps %>%
+  mutate(Variable = "EVI") %>%
+  relocate(Variable, .before = nms)
+
+lst.summary.tps <- as_tibble(cbind(nms = names(lst.summary), t(lst.summary)))
+lst.summary.tps <- lst.summary.tps %>%
+  mutate(Variable = "LST") %>%
+  relocate(Variable, .before = nms)
+
+pr.summary.tps <- as_tibble(cbind(nms = names(pr.summary), t(pr.summary)))
+pr.summary.tps <- pr.summary.tps %>%
+  mutate(Variable = "Precipitation") %>%
+  relocate(Variable, .before = nms)
+
+et.summary.tps <- as_tibble(cbind(nms = names(et.summary), t(et.summary)))
+et.summary.tps <- et.summary.tps %>%
+  mutate(Variable = "Evapotranspiration") %>%
+  relocate(Variable, .before = nms)
+
+agi.summary.tps <- as_tibble(cbind(nms = names(agi.summary), t(agi.summary)))
+agi.summary.tps <- agi.summary.tps %>%
+  mutate(Variable = "Aggregation index") %>%
+  relocate(Variable, .before = nms)
+
+# Bind
+full.summary.table <- as.data.frame(rbind(evi.summary.tps, lst.summary.tps, pr.summary.tps, et.summary.tps,agi.summary.tps))
+
+# Change column names
+colnames(full.summary.table) <- c("Variable", "Summary statistic", "Congolian Forests", "Lake Turkana", "Southern Drylands", "Subequatorial Savannas & Woodlands", "Sudanian Savannas", "Victoria Basin & Albertine Rift Forests")
+
+# Filter out rows that no longer are needed
+full.summary.table <- full.summary.table %>%
+  slice(c(-1, -6, -11, -16, -21))
+
+# Setting variables to be numeric
+full.summary.table <- full.summary.table %>%
+  mutate(`Congolian Forests` = as.numeric(`Congolian Forests`),
+         `Lake Turkana` = as.numeric(`Lake Turkana`),
+         `Southern Drylands` = as.numeric(`Southern Drylands`),
+         `Subequatorial Savannas & Woodlands` = as.numeric(`Subequatorial Savannas & Woodlands`),
+         `Sudanian Savannas` = as.numeric(`Sudanian Savannas`),
+         `Victoria Basin & Albertine Rift Forests` = as.numeric(`Victoria Basin & Albertine Rift Forests`))
+
+# adjusting sigfigs
+full.summary.table <- full.summary.table %>%
+  mutate(`Congolian Forests` = round(`Congolian Forests`, 3),
+         `Lake Turkana` = round(`Lake Turkana`, 3),
+         `Southern Drylands` = round(`Southern Drylands`, 3),
+         `Subequatorial Savannas & Woodlands` = round(`Subequatorial Savannas & Woodlands`, 3),
+         `Sudanian Savannas` = round(`Sudanian Savannas`, 3),
+         `Victoria Basin & Albertine Rift Forests` = round(`Victoria Basin & Albertine Rift Forests`, 3))
+
+
+
+####-------------------####
+#### Alternative table ####
+####-------------------####
+# rbind them
+evi.summary <- evi.summary %>%
+  mutate(Variable = "EVI") %>%
+  relocate(Variable, .before = Region)
+
+lst.summary <- lst.summary %>%
+  mutate(Variable = "Surface Temperature") %>%
+  relocate(Variable, .before = Region)
+
+pr.summary <- pr.summary %>%
+  mutate(Variable = "Precipitation") %>%
+  relocate(Variable, .before = Region)
+
+et.summary <- et.summary %>%
+  mutate(Variable = "Evapotranspiration") %>%
+  relocate(Variable, .before = Region)
+
+agi.summary <- agi.summary %>%
+  mutate(Variable = "Aggregation Index") %>%
+  relocate(Variable, .before = Region)
+
+# renaming columns
+colnames(evi.summary) <- c("Variable", "Region", "Mean", "St. dev", "Median", "Standard error")
+
+colnames(lst.summary) <- c("Variable", "Region", "Mean", "St. dev", "Median", "Standard error")
+
+colnames(pr.summary) <- c("Variable", "Region", "Mean", "St. dev", "Median", "Standard error")
+
+colnames(et.summary) <- c("Variable", "Region", "Mean", "St. dev", "Median", "Standard error")
+
+colnames(agi.summary) <- c("Variable", "Region", "Mean", "St. dev", "Median", "Standard error")
+
+# Bind
+full.summary.table.2 <- as.data.frame(rbind(evi.summary, lst.summary, pr.summary, et.summary, agi.summary))
+
+# Adjusting sigfigs
+full.summary.table.2 <- full.summary.table.2 %>%
+  mutate(Mean = round(Mean, 3),
+         `St. dev` = round(`St. dev`, 3),
+         Median = round(Median, 3),
+         `Standard error` = round(`Standard error`, 3)) %>%
+  select(-`Standard error`)
+
+# Create a publication-quality table
+table.1 <- flextable(full.summary.table.2) %>%
+    theme_booktabs() %>%
+  autofit()
+
+# Save
+save_as_docx(table.1, path = "Table.1.docx")
+
+```
